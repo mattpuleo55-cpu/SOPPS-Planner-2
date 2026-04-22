@@ -288,16 +288,16 @@ export default function App() {
         ? `You previously wrote this caption:\n\n${post.caption}\n\nFeedback: "${feedback}"\n\nRewrite incorporating this feedback. Keep the same format:\nINSTAGRAM:\n[caption]\n\nFACEBOOK:\n[caption]`
         : `You are a social media manager for SOPPS at Northeastern University.\n${settings.instructions?`Style guidelines:\n${settings.instructions}\n`:""}\nGenerate captions:\nTitle: ${post.title}\nFormat: ${post.format}\nType: ${post.contentType}\nDate: ${post.date}\nEvent Info: ${post.eventInfo}\nContacts: ${post.contacts}\nContext: ${post.notes}\n\nFormat exactly as:\nINSTAGRAM:\n[caption]\n\nFACEBOOK:\n[slightly longer caption]`;
 
-      const key = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!key) return "Add VITE_GEMINI_API_KEY to your .env file to enable AI captions.";
+      const key = import.meta.env.VITE_GROQ_API_KEY;
+      if (!key) return "Add VITE_GROQ_API_KEY to your .env file to enable AI captions.";
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+        headers: {"Content-Type":"application/json","Authorization":`Bearer ${key}`},
+        body: JSON.stringify({model:"llama-3.3-70b-versatile",messages:[{role:"user",content:prompt}],max_tokens:1000})
       });
       const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error generating caption.";
+      return data.choices?.[0]?.message?.content || "Error generating caption.";
     } catch(e) { return "Error generating caption."; }
     finally { setAiLoading(false); }
   };

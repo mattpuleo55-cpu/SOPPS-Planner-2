@@ -291,7 +291,7 @@ export default function App() {
       const key = import.meta.env.VITE_GEMINI_API_KEY;
       if (!key) return "Add VITE_GEMINI_API_KEY to your .env file to enable AI captions.";
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({contents:[{parts:[{text:prompt}]}]})

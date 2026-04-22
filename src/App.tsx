@@ -33,7 +33,7 @@ AVOID: Flat or overly neutral tone, excessive hype, slang or overly casual phras
 
 const uid = () => Math.random().toString(36).slice(2,10);
 const blankPost = yr => ({ id:uid(), title:"", date:"", dateType:"none", format:"Post", contentType:"Event Promo", creator:"", status:"Planned", eventInfo:"", contacts:"", notes:"", caption:"", academicYear:yr, priority:false, deadline:"", attachments:[], engagement:{likes:"",reach:"",comments:""} });
-const blankPub = () => ({ id:uid(), faculty:"", journal:"", articleLink:"", publishedMonth:"", articleTitle:"", done:false, createdAt:Date.now() });
+const blankPub = () => ({ id:uid(), faculty:"", faculty2:"", faculty3:"", journal:"", articleLink:"", publishedMonth:"", articleTitle:"", done:false, createdAt:Date.now() });
 const S = { border:"1px solid #e2e8f0", borderRadius:"6px", padding:"6px 10px", fontSize:"13px", width:"100%", boxSizing:"border-box", fontFamily:"inherit", outline:"none" };
 const fmtTime = ts => { const d=new Date(ts); return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" at "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}); };
 const isMonthOnly = d => d && /^\d{4}-\d{2}$/.test(d);
@@ -657,7 +657,7 @@ function PublicationsView({ pubs, onNew, onEdit, onToggleDone, collapsed, setCol
               {groups[gk].map((p,i)=>(
                 <div key={p.id} style={{display:"grid",gridTemplateColumns:"32px 1fr 1fr 2fr 130px 80px 70px",padding:"10px 14px",borderBottom:i<groups[gk].length-1?"1px solid #f8f8f8":"none",alignItems:"center",background:p.done?"#f0fdf4":"white"}}>
                   <div><div onClick={()=>onToggleDone(p.id)} style={{width:"18px",height:"18px",borderRadius:"50%",border:`2px solid ${p.done?"#22c55e":"#cbd5e1"}`,background:p.done?"#22c55e":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{p.done&&<span style={{color:"white",fontSize:"11px",lineHeight:1}}>✓</span>}</div></div>
-                  <div style={{fontSize:"13px",fontWeight:600,color:p.done?"#64748b":"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{p.faculty||"—"}</div>
+                  <div style={{fontSize:"13px",fontWeight:600,color:p.done?"#64748b":"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{[p.faculty,p.faculty2,p.faculty3].filter(Boolean).join(", ")||"—"}</div>
                   <div style={{fontSize:"12px",color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{p.journal||"—"}</div>
                   <div style={{fontSize:"12px",color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}} title={p.articleTitle}>{p.articleTitle||"—"}</div>
                   <div style={{fontSize:"12px",color:"#64748b",whiteSpace:"nowrap"}}>{p.publishedMonth?`${MONTHS_SHORT[parseInt(p.publishedMonth.split("-")[1])-1]} ${p.publishedMonth.split("-")[0]}`:"—"}</div>
@@ -688,7 +688,9 @@ function PubModal({ pub, onChange, onSave, onDelete, onDiscard }) {
           </div>
         </div>
         <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:"13px"}}>
-          <Row label="Faculty"><input value={pub.faculty} onChange={e=>f("faculty",e.target.value)} style={S} placeholder="Last name"/></Row>
+          <Row label="Faculty 1"><input value={pub.faculty} onChange={e=>f("faculty",e.target.value)} style={S} placeholder="Last name"/></Row>
+          <Row label="Faculty 2"><input value={pub.faculty2||""} onChange={e=>f("faculty2",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
+          <Row label="Faculty 3"><input value={pub.faculty3||""} onChange={e=>f("faculty3",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
           <Row label="Journal"><input value={pub.journal} onChange={e=>f("journal",e.target.value)} style={S} placeholder="Journal name"/></Row>
           <Row label="Article Title"><textarea value={pub.articleTitle} onChange={e=>f("articleTitle",e.target.value)} rows={2} style={{...S,resize:"vertical"}} placeholder="Full article title"/></Row>
           <Row label="Article Link"><input value={pub.articleLink} onChange={e=>f("articleLink",e.target.value)} style={S} placeholder="https://…"/></Row>
@@ -815,7 +817,7 @@ function CalView({ posts, calDate, setCalDate, onEdit, onDayClick }) {
             const dp=ds?(byDate[ds]||[]):[];
             const isToday=day&&today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===day;
             return (
-              <div key={i} style={{minHeight:"80px",padding:"6px",borderRight:"1px solid #f8f8f8",borderBottom:"1px solid #f8f8f8",background:day?"white":"#fafafa",cursor:day?"pointer":"default"}} onClick={()=>day&&onDayClick(ds)}>
+              <div key={i} style={{minHeight:"80px",padding:"6px",borderRight:"1px solid #f8f8f8",borderBottom:"1px solid #f8f8f8",background:day?"white":"#fafafa",cursor:day?"pointer":"default",overflow:"hidden",minWidth:0}} onClick={()=>day&&onDayClick(ds)}>
                 {day&&<div style={{width:"26px",height:"26px",borderRadius:"50%",background:isToday?NU_RED:"transparent",color:isToday?"white":"#475569",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",fontWeight:isToday?700:400,marginBottom:"4px"}}>{day}</div>}
                 {dp.map(p=><div key={p.id} onClick={e=>{e.stopPropagation();onEdit(p);}} style={{background:p.priority?"#ef4444":STATUS_CLR[p.status],color:"white",borderRadius:"3px",padding:"1px 5px",fontSize:"10px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}
               </div>

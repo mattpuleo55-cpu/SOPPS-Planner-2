@@ -285,19 +285,19 @@ export default function App() {
     setAiLoading(true);
     try {
       const prompt = feedback
-        ? `You previously wrote this caption:\n\n${post.caption}\n\nFeedback: "${feedback}"\n\nRewrite incorporating this feedback. Keep the same format:\nINSTAGRAM:\n[caption]\n\nFACEBOOK:\n[caption]`
-        : `You are a social media manager for SOPPS at Northeastern University.\n${settings.instructions?`Style guidelines:\n${settings.instructions}\n`:""}\nGenerate captions:\nTitle: ${post.title}\nFormat: ${post.format}\nType: ${post.contentType}\nDate: ${post.date}\nEvent Info: ${post.eventInfo}\nContacts: ${post.contacts}\nContext: ${post.notes}\n\nFormat exactly as:\nINSTAGRAM:\n[caption]\n\nFACEBOOK:\n[slightly longer caption]`;
+        ? `You previously wrote this caption:\n\n${post.caption}\n\nFeedback: "${feedback}"\n\nRewrite incorporating this feedback. Write one caption only, no labels.`
+        : `You are a social media manager for SOPPS at Northeastern University.\n${settings.instructions?`Style guidelines:\n${settings.instructions}\n`:""}\nGenerate a single social media caption for the following post. Write one caption only — no labels like INSTAGRAM: or FACEBOOK:.\nTitle: ${post.title}\nFormat: ${post.format}\nType: ${post.contentType}\nDate: ${post.date}\nEvent Info: ${post.eventInfo}\nContacts: ${post.contacts}\nContext: ${post.notes}`;
 
-      const key = import.meta.env.VITE_OPENROUTER_API_KEY;
-      if (!key) return "Add VITE_OPENROUTER_API_KEY to your .env file to enable AI captions.";
+      const key = import.meta.env.VITE_GROQ_API_KEY;
+      if (!key) return "Add VITE_GROQ_API_KEY to your .env file to enable AI captions.";
 
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-  method: "POST",
-  headers: {"Content-Type":"application/json","Authorization":`Bearer ${key}`},
-  body: JSON.stringify({model:"openrouter/auto",messages:[{role:"user",content:prompt}],max_tokens:1000})
-});
-const data = await res.json();
-return data.choices?.[0]?.message?.content || "Error generating caption.";
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","Authorization":`Bearer ${key}`},
+        body: JSON.stringify({model:"llama-3.3-70b-versatile",messages:[{role:"user",content:prompt}],max_tokens:1000})
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "Error generating caption.";
     } catch(e) { return "Error generating caption."; }
     finally { setAiLoading(false); }
   };
@@ -419,7 +419,7 @@ function Dashboard({ posts, onEdit, onNew, onNavigate }) {
             const dp=byDate[ds]||[];
             const isToday=i===0;
             return (
-              <div key={ds} style={{background:isToday?"#fff5f5":"#fafafa",borderRadius:"8px",padding:"8px 6px",minHeight:"80px",border:isToday?`1px solid ${NU_RED}30`:"1px solid #f1f5f9"}}>
+              <div key={ds} style={{background:isToday?"#fff5f5":"#fafafa",borderRadius:"8px",padding:"8px 6px",minHeight:"80px",border:isToday?`1px solid ${NU_RED}30`:"1px solid #f1f5f9",overflow:"hidden",minWidth:0}}>
                 <div style={{fontSize:"10px",color:"#94a3b8",fontWeight:600,textAlign:"center",textTransform:"uppercase"}}>{dayNames[d.getDay()]}</div>
                 <div style={{fontSize:"15px",fontWeight:700,color:isToday?NU_RED:"#475569",textAlign:"center",marginBottom:"4px"}}>{d.getDate()}</div>
                 {dp.map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{background:p.priority?"#ef4444":STATUS_CLR[p.status],color:"white",borderRadius:"3px",padding:"2px 4px",fontSize:"9px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}

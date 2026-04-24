@@ -294,7 +294,7 @@ export default function App() {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
   method: "POST",
   headers: {"Content-Type":"application/json","Authorization":`Bearer ${key}`},
-  body: JSON.stringify({model:"meta-llama/llama-3.3-8b-instruct:free",messages:[{role:"user",content:prompt}],max_tokens:1000})
+  body: JSON.stringify({model:"meta-llama/llama-4-scout:free",messages:[{role:"user",content:prompt}],max_tokens:1000})
 });
 const data = await res.json();
 return data.choices?.[0]?.message?.content || "Error generating caption.";

@@ -126,7 +126,7 @@ export default function App() {
         const u=c.map(p=>{ if(p.status==="Scheduled"&&isExact(p.date)&&p.date<=t){ch=true;return{...p,status:"Posted",lastUpdatedBy:"Auto",lastUpdatedAt:Date.now()};} return p; });
         if(ch){
           setPosts(u); postsRef.current=u;
-          supabase.from("posts").upsert(u.map(x=>({id:x.id,data:x}))).catch(()=>{});
+          supabase.from("posts").upsert(u.map(x=>({id:x.id,data:x}))).then(()=>{}).catch(()=>{});
         }
       };
       advance();
@@ -140,6 +140,36 @@ export default function App() {
       saveSettings({...settings, year:years[0]});
     }
   }, [loading, years]);
+
+  // ── Realtime subscriptions ────────────────────────────────────
+  useEffect(() => {
+    if (loading) return;
+    const channel = supabase
+      .channel("realtime-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, async () => {
+        const { data } = await supabase.from("posts").select("id,data");
+        if (data) { const p = data.map((r: any) => r.data); setPosts(p); postsRef.current = p; }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "publications" }, async () => {
+        const { data } = await supabase.from("publications").select("id,data");
+        if (data) setPubs(data.map((r: any) => r.data));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_log" }, async () => {
+        const { data } = await supabase.from("activity_log").select("id,data").order("created_at", { ascending: false }).limit(100);
+        if (data) setActivityLog(data.map((r: any) => r.data));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, async () => {
+        const { data } = await supabase.from("app_settings").select("key,value").in("key", ["settings", "years"]);
+        if (data) {
+          const sr = data.find((r: any) => r.key === "settings");
+          const yr = data.find((r: any) => r.key === "years");
+          if (sr) setSettings(sr.value);
+          if (yr) setYears(yr.value);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [loading]);
 
   // ── commitPosts: saves to history + Supabase ─────────────────
   const commitPosts = useCallback(async p => {
@@ -194,7 +224,7 @@ export default function App() {
   // ── Settings / Years / Username ───────────────────────────────
   const saveSettings = async s => {
     setSettings(s);
-    try { await supabase.from("app_settings").upsert({key:"settings",value:s}); } catch(e) {}
+    try { await supabase.from("app_settings").upsert([{key:"settings",value:s}]); } catch(e) {}
   };
 
   const saveUsername = async name => {
@@ -204,7 +234,7 @@ export default function App() {
 
   const saveYears = async updated => {
     setYears(updated);
-    try { await supabase.from("app_settings").upsert({key:"years",value:updated}); } catch(e) {}
+    try { await supabase.from("app_settings").upsert([{key:"years",value:updated}]); } catch(e) {}
   };
 
   // ── Publications ──────────────────────────────────────────────

@@ -126,7 +126,7 @@ export default function App() {
         const u=c.map(p=>{ if(p.status==="Scheduled"&&isExact(p.date)&&p.date<=t){ch=true;return{...p,status:"Posted",lastUpdatedBy:"Auto",lastUpdatedAt:Date.now()};} return p; });
         if(ch){
           setPosts(u); postsRef.current=u;
-          supabase.from("posts").upsert(u.map(x=>({id:x.id,data:x}))).then(()=>{}).catch(()=>{});
+          supabase.from("posts").upsert(u.map(x=>({id:x.id,data:x})),{onConflict:"id"}).then(()=>{}).catch(()=>{});
         }
       };
       advance();
@@ -180,7 +180,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:false});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})));
+      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -197,7 +197,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:true});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})));
+      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -213,7 +213,7 @@ export default function App() {
     setHistState({canUndo:true,canRedo:histIdxRef.current<historyRef.current.length-1});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})));
+      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -224,7 +224,7 @@ export default function App() {
   // ── Settings / Years / Username ───────────────────────────────
   const saveSettings = async s => {
     setSettings(s);
-    try { await supabase.from("app_settings").upsert([{key:"settings",value:s}]); } catch(e) {}
+    try { await supabase.from("app_settings").upsert([{key:"settings",value:s}],{onConflict:"key"}); } catch(e) {}
   };
 
   const saveUsername = async name => {
@@ -234,7 +234,7 @@ export default function App() {
 
   const saveYears = async updated => {
     setYears(updated);
-    try { await supabase.from("app_settings").upsert([{key:"years",value:updated}]); } catch(e) {}
+    try { await supabase.from("app_settings").upsert([{key:"years",value:updated}],{onConflict:"key"}); } catch(e) {}
   };
 
   // ── Publications ──────────────────────────────────────────────
@@ -242,7 +242,7 @@ export default function App() {
     const prev = pubs;
     setPubs(p);
     try {
-      if (p.length > 0) await supabase.from("publications").upsert(p.map(x=>({id:x.id,data:x})));
+      if (p.length > 0) await supabase.from("publications").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));

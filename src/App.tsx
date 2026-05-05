@@ -2,6 +2,18 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "./lib/supabase";
 
+// Safe upsert that works with ALL Supabase versions
+const safeUpsert = async (table: string, rows: any[], conflictCol: string) => {
+  for (const row of rows) {
+    const { data } = await supabase.from(table).select(conflictCol).eq(conflictCol, row[conflictCol]);
+    if (data && data.length > 0) {
+      await supabase.from(table).update(row).eq(conflictCol, row[conflictCol]);
+    } else {
+      await supabase.from(table).insert(row);
+    }
+  }
+};
+
 const NU_RED = "#C8102E";
 const FORMATS = ["Post","Story","Reel"];
 const CONTENT_TYPES = ["Event Promo","Student Spotlight","Student Org Spotlight","Ambassadors","Deadline Reminder","Program Info","Faculty Feature","Conference","Publication","Other"];
@@ -126,7 +138,7 @@ export default function App() {
         const u=c.map(p=>{ if(p.status==="Scheduled"&&isExact(p.date)&&p.date<=t){ch=true;return{...p,status:"Posted",lastUpdatedBy:"Auto",lastUpdatedAt:Date.now()};} return p; });
         if(ch){
           setPosts(u); postsRef.current=u;
-          supabase.from("posts").upsert(u.map(x=>({id:x.id,data:x})),{onConflict:"id"}).then(()=>{}).catch(()=>{});
+          safeUpsert("posts", u.map(x=>({id:x.id,data:x})), "id").catch(()=>{});
         }
       };
       advance();
@@ -180,7 +192,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:false});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
+      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -197,7 +209,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:true});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
+      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -213,7 +225,7 @@ export default function App() {
     setHistState({canUndo:true,canRedo:histIdxRef.current<historyRef.current.length-1});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await supabase.from("posts").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
+      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -224,7 +236,7 @@ export default function App() {
   // ── Settings / Years / Username ───────────────────────────────
   const saveSettings = async s => {
     setSettings(s);
-    try { await supabase.from("app_settings").upsert([{key:"settings",value:s}],{onConflict:"key"}); } catch(e) {}
+    try { await safeUpsert("app_settings", [{key:"settings",value:s}], "key"); } catch(e) {}
   };
 
   const saveUsername = async name => {
@@ -234,7 +246,7 @@ export default function App() {
 
   const saveYears = async updated => {
     setYears(updated);
-    try { await supabase.from("app_settings").upsert([{key:"years",value:updated}],{onConflict:"key"}); } catch(e) {}
+    try { await safeUpsert("app_settings", [{key:"years",value:updated}], "key"); } catch(e) {}
   };
 
   // ── Publications ──────────────────────────────────────────────
@@ -242,7 +254,7 @@ export default function App() {
     const prev = pubs;
     setPubs(p);
     try {
-      if (p.length > 0) await supabase.from("publications").upsert(p.map(x=>({id:x.id,data:x})),{onConflict:"id"});
+      if (p.length > 0) await safeUpsert("publications", p.map(x=>({id:x.id,data:x})), "id");
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));

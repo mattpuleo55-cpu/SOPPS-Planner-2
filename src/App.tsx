@@ -592,7 +592,8 @@ function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, 
                 <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 10px",background:"#f8f8f8",borderRadius:"7px",border:"1px solid #e2e8f0"}}>
                   <div style={{width:"32px",height:"32px",borderRadius:"6px",background:att.type==="application/pdf"?"#fef2f2":"#eff6ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontSize:"14px"}}>{att.type==="application/pdf"?"📄":"🖼"}</span></div>
                   <div style={{flex:1,minWidth:0}}><div style={{fontSize:"12px",fontWeight:500,color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{att.name}</div><div style={{fontSize:"11px",color:"#94a3b8"}}>{fmtSize(att.size)}</div></div>
-                  {att.data&&<a href={att.data} download={att.name} style={{fontSize:"11px",color:NU_RED,textDecoration:"none",fontWeight:500,flexShrink:0}}>Download</a>}
+                  {att.data&&<a href={att.data} target="_blank" rel="noreferrer" style={{fontSize:"11px",color:NU_RED,textDecoration:"none",fontWeight:500,flexShrink:0}}>View</a>}
+                  {att.data&&<a href={att.data} download={att.name} style={{fontSize:"11px",color:"#64748b",textDecoration:"none",fontWeight:500,flexShrink:0}}>↓</a>}
                   <button onClick={()=>f("attachments",(post.attachments||[]).filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:"18px",lineHeight:1,flexShrink:0}}>×</button>
                 </div>
               ))}</div>
@@ -701,7 +702,7 @@ function PublicationsView({ pubs, onNew, onEdit, onToggleDone, collapsed, setCol
                   <div><div onClick={()=>onToggleDone(p.id)} style={{width:"18px",height:"18px",borderRadius:"50%",border:`2px solid ${p.done?"#22c55e":"#cbd5e1"}`,background:p.done?"#22c55e":"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{p.done&&<span style={{color:"white",fontSize:"11px",lineHeight:1}}>✓</span>}</div></div>
                   <div style={{fontSize:"13px",fontWeight:600,color:p.done?"#64748b":"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{[p.faculty,p.faculty2,p.faculty3].filter(Boolean).join(", ")||"—"}</div>
                   <div style={{fontSize:"12px",color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{p.journal||"—"}</div>
-                  <div style={{fontSize:"12px",color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}} title={p.articleTitle}>{p.articleTitle||"—"}</div>
+                  <div style={{fontSize:"12px",color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}} title={pub.articleTitle}>{pub.articleTitle&&pub.articleTitle.includes("<")?<span dangerouslySetInnerHTML={{__html:pub.articleTitle}}/>:pub.articleTitle||"—"}</div>
                   <div style={{fontSize:"12px",color:"#64748b",whiteSpace:"nowrap"}}>{p.publishedMonth?`${MONTHS_SHORT[parseInt(p.publishedMonth.split("-")[1])-1]} ${p.publishedMonth.split("-")[0]}`:"—"}</div>
                   <div style={{fontSize:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{p.articleLink?<a href={p.articleLink} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:NU_RED,textDecoration:"none",fontWeight:500}}>View →</a>:"—"}</div>
                   <div style={{textAlign:"right"}}><button onClick={()=>onEdit(p)} style={{background:"#f1f5f9",border:"none",borderRadius:"5px",padding:"4px 9px",cursor:"pointer",fontSize:"11px",color:"#475569"}}>Edit</button></div>
@@ -734,7 +735,39 @@ function PubModal({ pub, onChange, onSave, onDelete, onDiscard }) {
           <Row label="Faculty 2"><input value={pub.faculty2||""} onChange={e=>f("faculty2",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
           <Row label="Faculty 3"><input value={pub.faculty3||""} onChange={e=>f("faculty3",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
           <Row label="Journal"><input value={pub.journal} onChange={e=>f("journal",e.target.value)} style={S} placeholder="Journal name"/></Row>
-          <Row label="Article Title"><textarea value={pub.articleTitle} onChange={e=>f("articleTitle",e.target.value)} rows={2} style={{...S,resize:"vertical"}} placeholder="Full article title"/></Row>
+          <Row label="Article Title">
+            <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
+              <div style={{display:"flex",gap:"4px"}}>
+                <button type="button" onMouseDown={e=>{
+                  e.preventDefault();
+                  const ta=document.getElementById("articleTitleTA") as HTMLTextAreaElement;
+                  if(!ta)return;
+                  const start=ta.selectionStart,end=ta.selectionEnd;
+                  const sel=ta.value.slice(start,end);
+                  const newVal=ta.value.slice(0,start)+(sel?`<sup>${sel}</sup>`:"<sup></sup>")+ta.value.slice(end);
+                  f("articleTitle",newVal);
+                  setTimeout(()=>{ta.focus();ta.setSelectionRange(start+5,sel?start+5+sel.length:start+5);},0);
+                }} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:"4px",padding:"2px 8px",cursor:"pointer",fontSize:"12px",fontWeight:600,color:"#475569"}}>X<sup style={{fontSize:"8px"}}>2</sup> Sup</button>
+                <button type="button" onMouseDown={e=>{
+                  e.preventDefault();
+                  const ta=document.getElementById("articleTitleTA") as HTMLTextAreaElement;
+                  if(!ta)return;
+                  const start=ta.selectionStart,end=ta.selectionEnd;
+                  const sel=ta.value.slice(start,end);
+                  const newVal=ta.value.slice(0,start)+(sel?`<sub>${sel}</sub>`:"<sub></sub>")+ta.value.slice(end);
+                  f("articleTitle",newVal);
+                  setTimeout(()=>{ta.focus();ta.setSelectionRange(start+5,sel?start+5+sel.length:start+5);},0);
+                }} style={{background:"#f1f5f9",border:"1px solid #e2e8f0",borderRadius:"4px",padding:"2px 8px",cursor:"pointer",fontSize:"12px",fontWeight:600,color:"#475569"}}>X<sub style={{fontSize:"8px"}}>2</sub> Sub</button>
+                <span style={{fontSize:"11px",color:"#94a3b8",alignSelf:"center",marginLeft:"4px"}}>Select text then click to wrap</span>
+              </div>
+              <textarea id="articleTitleTA" value={pub.articleTitle} onChange={e=>f("articleTitle",e.target.value)} rows={2} style={{...S,resize:"vertical"}} placeholder="Full article title"/>
+              {pub.articleTitle&&pub.articleTitle.includes("<")&&(
+                <div style={{fontSize:"12px",color:"#64748b",padding:"4px 8px",background:"#f8fafc",borderRadius:"4px",border:"1px solid #e2e8f0"}}>
+                  Preview: <span dangerouslySetInnerHTML={{__html:pub.articleTitle}}/>
+                </div>
+              )}
+            </div>
+          </Row>
           <Row label="Article Link"><input value={pub.articleLink} onChange={e=>f("articleLink",e.target.value)} style={S} placeholder="https://…"/></Row>
           <Row label="Published">
             <div style={{display:"flex",gap:"8px"}}>

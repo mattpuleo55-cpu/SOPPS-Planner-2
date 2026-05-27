@@ -731,9 +731,9 @@ function PubModal({ pub, onChange, onSave, onDelete, onDiscard }) {
           </div>
         </div>
         <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:"13px"}}>
-          <Row label="Faculty 1"><input value={pub.faculty} onChange={e=>f("faculty",e.target.value)} style={S} placeholder="Last name"/></Row>
-          <Row label="Faculty 2"><input value={pub.faculty2||""} onChange={e=>f("faculty2",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
-          <Row label="Faculty 3"><input value={pub.faculty3||""} onChange={e=>f("faculty3",e.target.value)} style={S} placeholder="Last name (optional)"/></Row>
+          <Row label="Faculty 1"><input value={pub.faculty} onChange={e=>f("faculty",e.target.value)} style={S} placeholder="First and last name"/></Row>
+          <Row label="Faculty 2"><input value={pub.faculty2||""} onChange={e=>f("faculty2",e.target.value)} style={S} placeholder="First and last name (optional)"/></Row>
+          <Row label="Faculty 3"><input value={pub.faculty3||""} onChange={e=>f("faculty3",e.target.value)} style={S} placeholder="First and last name (optional)"/></Row>
           <Row label="Journal"><input value={pub.journal} onChange={e=>f("journal",e.target.value)} style={S} placeholder="Journal name"/></Row>
           <Row label="Article Title">
             <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>

@@ -70,7 +70,7 @@ export default function App() {
   const [pubs, setPubs] = useState([]);
   const [pubModal, setPubModal] = useState(null);
   const [activityLog, setActivityLog] = useState([]);
-  const [settings, setSettings] = useState({ instructions:DEFAULT_CAPTION_INSTRUCTIONS, year:"2026-2027" });
+  const [settings, setSettings] = useState({ instructions:DEFAULT_CAPTION_INSTRUCTIONS, year:"2026-2027", defaultYear:"" });
   const [years, setYears] = useState(DEFAULT_YEARS);
   const [username, setUsername] = useState("");
   const [showNamePrompt, setShowNamePrompt] = useState(false);
@@ -110,7 +110,11 @@ export default function App() {
           const yr = data.find(r => r.key === "years");
           if (sr) {
             const s = sr.value;
-            setSettings({ year: s.year||"2026-2027", instructions: s.instructions && s.instructions.trim().length > 0 ? s.instructions : DEFAULT_CAPTION_INSTRUCTIONS });
+            const loadedSettings = { year: s.year||"2026-2027", instructions: s.instructions && s.instructions.trim().length > 0 ? s.instructions : DEFAULT_CAPTION_INSTRUCTIONS, defaultYear: s.defaultYear||"" };
+            if (loadedSettings.defaultYear && loadedSettings.defaultYear !== loadedSettings.year) {
+              loadedSettings.year = loadedSettings.defaultYear;
+            }
+            setSettings(loadedSettings);
           }
           if (yr) setYears(yr.value);
           else setYears(DEFAULT_YEARS);
@@ -405,7 +409,7 @@ export default function App() {
         {view==="settings"&&<SettingsView key={settings.instructions.slice(0,20)} settings={settings} onSave={saveSettings} years={years} onSaveYears={saveYears} currentYear={settings.year} onSetYear={yr=>saveSettings({...settings,year:yr})} orphanedPosts={orphanedPosts} onRescueOrphans={yr=>commitPosts(posts.map(p=>!years.includes(p.academicYear)?{...p,academicYear:yr}:p))} allPosts={posts} onBulkDelete={bulkDelete} onDeleteAttachments={deleteAttachments}/>}
       </div>
 
-      {modal&&<PostModal post={modal} onChange={setModal} onSave={upsert} onDelete={deletePost} onDiscard={()=>setModal(null)} onGenCaption={genCaption} aiLoading={aiLoading}/>}
+      {modal&&<PostModal post={modal} onChange={setModal} onSave={upsert} onDelete={deletePost} onDiscard={()=>setModal(null)} onGenCaption={genCaption} aiLoading={aiLoading} years={years}/>}
       {pubModal&&<PubModal pub={pubModal} onChange={setPubModal} onSave={upsertPub} onDelete={deletePub} onDiscard={()=>setPubModal(null)}/>}
       {dayModal&&<DayPickerModal date={dayModal.date} posts={yearPosts} onAssign={p=>{upsert({...p,date:dayModal.date,dateType:"exact"});setDayModal(null);}} onNew={()=>{setModal({...blankPost(settings.year),date:dayModal.date,dateType:"exact"});setDayModal(null);}} onClose={()=>setDayModal(null)}/>}
     </div>
@@ -523,7 +527,7 @@ function Dashboard({ posts, onEdit, onNew, onNavigate }) {
   );
 }
 
-function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, aiLoading }) {
+function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, aiLoading, years }) {
   const f=(k,v)=>onChange({...post,[k]:v});
   const ef=(k,v)=>onChange({...post,engagement:{...post.engagement,[k]:v}});
   const [feedback,setFeedback]=useState("");
@@ -577,6 +581,7 @@ function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, 
           <Row label="Type"><select value={post.contentType} onChange={e=>f("contentType",e.target.value)} style={S}>{CONTENT_TYPES.map(t=><option key={t}>{t}</option>)}</select></Row>
           <Row label="Creator"><input value={post.creator} onChange={e=>f("creator",e.target.value)} style={S} placeholder="Who's creating this?"/></Row>
           <Row label="Status"><div style={{display:"flex",gap:"6px",flexWrap:"wrap",paddingTop:"2px"}}>{STATUSES.map(s=><button key={s} onClick={()=>f("status",s)} style={{background:post.status===s?STATUS_CLR[s]:"#f1f5f9",color:post.status===s?"white":"#475569",border:"none",borderRadius:"20px",padding:"4px 12px",cursor:"pointer",fontSize:"12px",fontWeight:500}}>{s}</button>)}</div></Row>
+          <Row label="Academic Year"><select value={post.academicYear} onChange={e=>f("academicYear",e.target.value)} style={S}>{years.map((y:string)=><option key={y}>{y}</option>)}</select></Row>
           <Row label="Event Info"><textarea value={post.eventInfo||""} onChange={e=>f("eventInfo",e.target.value)} rows={2} style={{...S,resize:"vertical"}} placeholder="Event details, date/time, location…"/></Row>
           <Row label="Contacts"><input value={post.contacts||""} onChange={e=>f("contacts",e.target.value)} style={S} placeholder="Names or emails of relevant contacts…"/></Row>
           <Row label="Additional Info"><textarea value={post.notes} onChange={e=>f("notes",e.target.value)} rows={2} style={{...S,resize:"vertical"}} placeholder="Links, extra context, notes…"/></Row>
@@ -1043,6 +1048,13 @@ function SettingsView({ settings, onSave, years, onSaveYears, currentYear, onSet
       <SCard>
         <STitle>Academic Years</STitle>
         <p style={{fontSize:"13px",color:"#64748b",marginBottom:"16px",lineHeight:1.6,marginTop:"6px"}}>Manage which academic years are available in the planner.</p>
+        <div style={{marginBottom:"16px",padding:"12px 14px",background:"#f8fafc",borderRadius:"8px",border:"1px solid #e2e8f0"}}>
+          <div style={{fontSize:"12px",fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"8px"}}>Default Opening Year</div>
+          <div style={{fontSize:"12px",color:"#64748b",marginBottom:"8px"}}>This year will be selected automatically every time someone opens the planner.</div>
+          <select value={settings.defaultYear||settings.year} onChange={e=>onSave({...settings,defaultYear:e.target.value})} style={{...S,width:"auto"}}>
+            {years.map((y:string)=><option key={y}>{y}</option>)}
+          </select>
+        </div>
         {lastRemoved&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:"8px",background:"#fefce8",border:"1px solid #fde68a",marginBottom:"12px"}}><span style={{fontSize:"13px",color:"#92400e"}}>Removed <strong>{lastRemoved}</strong></span><button onClick={undoRemove} style={{background:"#f59e0b",color:"white",border:"none",borderRadius:"6px",padding:"4px 12px",cursor:"pointer",fontSize:"12px",fontWeight:600}}>↩ Undo</button></div>}
         <div style={{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"16px"}}>
           {years.map(yr=>(

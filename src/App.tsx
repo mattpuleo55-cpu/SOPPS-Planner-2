@@ -75,6 +75,7 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [modal, setModal] = useState(null);
   const [calDate, setCalDate] = useState(() => { const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),1); });
   const [filter, setFilter] = useState({ status:"All", format:"All", month:"All" });
@@ -88,26 +89,30 @@ export default function App() {
   const postsRef = useRef([]);
 
   // ── Initial load from Supabase ────────────────────────────────
-  useEffect(() => {
-    (async () => {
+  const loadData = async () => {
+    setLoading(true);
+    setLoadError(false);
+    let success = false;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const { data } = await supabase.from("posts").select("id,data");
-        if (data && data.length > 0) {
-          const p = data.map(r => r.data);
+        const [postsRes, pubsRes, settingsRes, activityRes] = await Promise.all([
+          supabase.from("posts").select("id,data"),
+          supabase.from("publications").select("id,data"),
+          supabase.from("app_settings").select("key,value").in("key",["settings","years"]),
+          supabase.from("activity_log").select("id,data").order("created_at",{ascending:false}).limit(100)
+        ]);
+
+        if (postsRes.data && postsRes.data.length > 0) {
+          const p = postsRes.data.map(r => r.data);
           setPosts(p); postsRef.current=p; historyRef.current=[p]; histIdxRef.current=0;
         }
-      } catch(e) {}
 
-      try {
-        const { data } = await supabase.from("publications").select("id,data");
-        if (data) setPubs(data.map(r => r.data));
-      } catch(e) {}
+        if (pubsRes.data) setPubs(pubsRes.data.map(r => r.data));
 
-      try {
-        const { data } = await supabase.from("app_settings").select("key,value").in("key",["settings","years"]);
-        if (data) {
-          const sr = data.find(r => r.key === "settings");
-          const yr = data.find(r => r.key === "years");
+        if (settingsRes.data) {
+          const sr = settingsRes.data.find(r => r.key === "settings");
+          const yr = settingsRes.data.find(r => r.key === "years");
           if (sr) {
             const s = sr.value;
             const loadedSettings = { year: s.year||"2026-2027", instructions: s.instructions && s.instructions.trim().length > 0 ? s.instructions : DEFAULT_CAPTION_INSTRUCTIONS, defaultYear: s.defaultYear||"" };
@@ -119,20 +124,25 @@ export default function App() {
           if (yr) setYears(yr.value);
           else setYears(DEFAULT_YEARS);
         } else { setYears(DEFAULT_YEARS); }
-      } catch(e) { setYears(DEFAULT_YEARS); }
 
-      try {
-        const { data } = await supabase.from("activity_log").select("id,data").order("created_at",{ascending:false}).limit(100);
-        if (data) setActivityLog(data.map(r => r.data));
-      } catch(e) {}
+        if (activityRes.data) setActivityLog(activityRes.data.map(r => r.data));
 
-      const name = localStorage.getItem("sopps_username");
-      if (name) setUsername(name);
-      else setShowNamePrompt(true);
+        const name = localStorage.getItem("sopps_username");
+        if (name) setUsername(name);
+        else setShowNamePrompt(true);
 
-      setLoading(false);
-    })();
-  }, []);
+        success = true;
+        break;
+      } catch(e) {
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+
+    if (!success) setLoadError(true);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   // ── Auto-advance Scheduled → Posted ──────────────────────────
   useEffect(() => {
@@ -360,7 +370,21 @@ export default function App() {
 
   const newForMonth = gk => { const p=blankPost(settings.year); if(gk!=="unscheduled"){p.dateType="month";p.date=gk;} setModal(p); };
 
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"system-ui",color:"#64748b"}}>Loading…</div>;
+  if(loading) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"system-ui",color:"#64748b",flexDirection:"column",gap:12}}>
+      <div style={{width:36,height:36,border:"3px solid #e2e8f0",borderTopColor:NU_RED,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <div>Loading SOPPS Planner…</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+  if(loadError) return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"system-ui",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:40}}>⚠️</div>
+      <div style={{fontSize:18,fontWeight:700,color:"#1e293b"}}>Couldn't connect to the database</div>
+      <div style={{fontSize:14,color:"#64748b"}}>Check your internet connection and try again.</div>
+      <button onClick={loadData} style={{background:NU_RED,color:"white",border:"none",borderRadius:8,padding:"10px 24px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Try Again</button>
+    </div>
+  );
 
   const navItems=[["dashboard","Home"],["list","Content List"],["calendar","Calendar"],["publications","Publications"],["analytics","Analytics"],["activity","Activity"],["settings","Settings"],["help","Help"]];
 

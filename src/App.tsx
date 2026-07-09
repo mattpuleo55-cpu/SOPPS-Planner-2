@@ -2,16 +2,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "./lib/supabase";
 
-// Safe upsert that works with ALL Supabase versions
+// Efficient upsert using native Supabase syntax
 const safeUpsert = async (table: string, rows: any[], conflictCol: string) => {
-  for (const row of rows) {
-    const { data } = await supabase.from(table).select(conflictCol).eq(conflictCol, row[conflictCol]);
-    if (data && data.length > 0) {
-      await supabase.from(table).update(row).eq(conflictCol, row[conflictCol]);
-    } else {
-      await supabase.from(table).insert(row);
-    }
-  }
+  if (!rows.length) return;
+  await supabase.from(table).upsert(rows, { onConflict: conflictCol, ignoreDuplicates: false });
 };
 
 const NU_RED = "#C8102E";
@@ -167,35 +161,8 @@ export default function App() {
     }
   }, [loading, years]);
 
-  // ── Realtime subscriptions ────────────────────────────────────
-  useEffect(() => {
-    if (loading) return;
-    const channel = supabase
-      .channel("realtime-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, async () => {
-        const { data } = await supabase.from("posts").select("id,data");
-        if (data) { const p = data.map((r: any) => r.data); setPosts(p); postsRef.current = p; }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "publications" }, async () => {
-        const { data } = await supabase.from("publications").select("id,data");
-        if (data) setPubs(data.map((r: any) => r.data));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "activity_log" }, async () => {
-        const { data } = await supabase.from("activity_log").select("id,data").order("created_at", { ascending: false }).limit(100);
-        if (data) setActivityLog(data.map((r: any) => r.data));
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, async () => {
-        const { data } = await supabase.from("app_settings").select("key,value").in("key", ["settings", "years"]);
-        if (data) {
-          const sr = data.find((r: any) => r.key === "settings");
-          const yr = data.find((r: any) => r.key === "years");
-          if (sr) setSettings(sr.value);
-          if (yr) setYears(yr.value);
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [loading]);
+
+
 
   // ── commitPosts: saves to history + Supabase ─────────────────
   const commitPosts = useCallback(async p => {

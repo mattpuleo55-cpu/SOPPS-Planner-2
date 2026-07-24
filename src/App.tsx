@@ -81,6 +81,43 @@ export default function App() {
   const histIdxRef = useRef(-1);
   const [histState, setHistState] = useState({ canUndo:false, canRedo:false });
   const postsRef = useRef([]);
+  // Cache of full attachment blobs, keyed by post id. Attachments are NOT
+  // loaded into the posts array on startup (they're huge and cause timeouts);
+  // they're fetched on demand and stitched back in before any save so they
+  // are never lost.
+  const attachmentsCacheRef = useRef({});
+  const [attachmentsLoadingId, setAttachmentsLoadingId] = useState(null);
+
+  // Re-attach cached attachment blobs to a posts array before saving, so
+  // saves never overwrite attachments that weren't loaded into memory.
+  const withAttachments = (arr) => arr.map(p => {
+    const cached = attachmentsCacheRef.current[p.id];
+    // If the post object already carries real attachments, keep them and
+    // refresh the cache. Otherwise fall back to whatever we have cached.
+    if (Array.isArray(p.attachments) && p.attachments.length > 0 && p.attachments.some(a=>a && a.data)) {
+      attachmentsCacheRef.current[p.id] = p.attachments;
+      return p;
+    }
+    if (cached !== undefined) return { ...p, attachments: cached };
+    return p;
+  });
+
+  // Fetch one post's full attachments on demand and merge into state.
+  const loadAttachments = async (id) => {
+    if (attachmentsCacheRef.current[id] !== undefined) return; // already have them
+    setAttachmentsLoadingId(id);
+    try {
+      const { data } = await supabase.from("posts").select("data").eq("id", id).single();
+      const atts = (data && data.data && data.data.attachments) || [];
+      attachmentsCacheRef.current[id] = atts;
+      const merged = postsRef.current.map(p => p.id === id ? { ...p, attachments: atts } : p);
+      setPosts(merged); postsRef.current = merged;
+    } catch(e) {
+      attachmentsCacheRef.current[id] = [];
+    } finally {
+      setAttachmentsLoadingId(null);
+    }
+  };
 
   // ── Initial load from Supabase ────────────────────────────────
   const loadData = async () => {
@@ -91,14 +128,22 @@ export default function App() {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const [postsRes, pubsRes, settingsRes, activityRes] = await Promise.all([
-          supabase.from("posts").select("id,data"),
+          // Load posts WITHOUT the attachments blob. posts_light is a database
+          // view that returns each post's data minus the 'attachments' key,
+          // so the payload is tiny and the query no longer times out.
+          // Attachments are fetched on demand when a post is opened.
+          supabase.from("posts_light").select("id,data,att_size,att_count"),
           supabase.from("publications").select("id,data"),
           supabase.from("app_settings").select("key,value").in("key",["settings","years"]),
           supabase.from("activity_log").select("id,data").order("created_at",{ascending:false}).limit(100)
         ]);
 
         if (postsRes.data && postsRes.data.length > 0) {
-          const p = postsRes.data.map(r => r.data);
+          // Each post arrives without attachments; leaving attachments
+          // undefined signals the UI to lazy-load them when the post opens.
+          // _attSize / _attCount come from the view (computed server-side) so
+          // the Storage Breakdown still works without loading the blobs.
+          const p = postsRes.data.map(r => ({ ...r.data, attachments: undefined, _attSize: r.att_size||0, _attCount: r.att_count||0 }));
           setPosts(p); postsRef.current=p; historyRef.current=[p]; histIdxRef.current=0;
         }
 
@@ -146,7 +191,8 @@ export default function App() {
         const u=c.map(p=>{ if(p.status==="Scheduled"&&isExact(p.date)&&p.date<=t){ch=true;return{...p,status:"Posted",lastUpdatedBy:"Auto",lastUpdatedAt:Date.now()};} return p; });
         if(ch){
           setPosts(u); postsRef.current=u;
-          safeUpsert("posts", u.map(x=>({id:x.id,data:x})), "id").catch(()=>{});
+          const save=withAttachments(u);
+          safeUpsert("posts", save.map(x=>({id:x.id,data:x})), "id").catch(()=>{});
         }
       };
       advance();
@@ -173,7 +219,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:false});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
+      if (p.length > 0) { const save=withAttachments(p); await safeUpsert("posts", save.map(x=>({id:x.id,data:x})), "id"); }
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -190,7 +236,7 @@ export default function App() {
     setHistState({canUndo:histIdxRef.current>0,canRedo:true});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
+      if (p.length > 0) { const save=withAttachments(p); await safeUpsert("posts", save.map(x=>({id:x.id,data:x})), "id"); }
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -206,7 +252,7 @@ export default function App() {
     setHistState({canUndo:true,canRedo:histIdxRef.current<historyRef.current.length-1});
     setPosts(p); postsRef.current=p;
     try {
-      if (p.length > 0) await safeUpsert("posts", p.map(x=>({id:x.id,data:x})), "id");
+      if (p.length > 0) { const save=withAttachments(p); await safeUpsert("posts", save.map(x=>({id:x.id,data:x})), "id"); }
       const prevIds = new Set(prev.map(x=>x.id));
       const newIds = new Set(p.map(x=>x.id));
       const toDelete = [...prevIds].filter(id=>!newIds.has(id));
@@ -298,6 +344,7 @@ export default function App() {
 
   const deleteAttachments = async id => {
     const p=posts.find(x=>x.id===id);
+    attachmentsCacheRef.current[id]=[]; // clear cache so the empty state persists
     const updated=posts.map(x=>x.id===id?{...x,attachments:[]}:x);
     await commitPosts(updated);
     await logActivity("cleared attachments from",p?.title||"a post");
@@ -336,6 +383,20 @@ export default function App() {
   };
 
   const newForMonth = gk => { const p=blankPost(settings.year); if(gk!=="unscheduled"){p.dateType="month";p.date=gk;} setModal(p); };
+
+  // Open an existing post for editing, lazy-loading its attachments first so
+  // the modal shows them even though they weren't loaded on startup.
+  const openPost = async (p) => {
+    const cached = attachmentsCacheRef.current[p.id];
+    if (cached !== undefined) {
+      setModal({ ...p, attachments: cached });
+    } else {
+      setModal({ ...p, attachments: [] });
+      await loadAttachments(p.id);
+      // Refresh the open modal with the freshly loaded attachments.
+      setModal(m => (m && m.id === p.id) ? { ...m, attachments: attachmentsCacheRef.current[p.id] || [] } : m);
+    }
+  };
 
   if(loading) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"system-ui",color:"#64748b",flexDirection:"column",gap:12}}>
@@ -390,9 +451,9 @@ export default function App() {
       </div>
 
       <div style={{padding:"24px",maxWidth:"1100px",margin:"0 auto"}}>
-        {view==="dashboard"&&<Dashboard posts={yearPosts} onEdit={setModal} onNew={()=>setModal(blankPost(settings.year))} onNavigate={setView}/>}
-        {view==="list"&&<ListView posts={filtered} allYearPosts={yearPosts} filter={filter} setFilter={setFilter} collapsedMonths={collapsedMonths} setCollapsedMonths={setCollapsedMonths} onNew={()=>setModal(blankPost(settings.year))} onNewForMonth={newForMonth} onEdit={setModal} onStatusChange={updateStatus} onExport={()=>exportCSV(filtered)}/>}
-        {view==="calendar"&&<CalView posts={yearPosts} calDate={calDate} setCalDate={setCalDate} onEdit={setModal} onDayClick={d=>setDayModal({date:d})}/>}
+        {view==="dashboard"&&<Dashboard posts={yearPosts} onEdit={openPost} onNew={()=>setModal(blankPost(settings.year))} onNavigate={setView}/>}
+        {view==="list"&&<ListView posts={filtered} allYearPosts={yearPosts} filter={filter} setFilter={setFilter} collapsedMonths={collapsedMonths} setCollapsedMonths={setCollapsedMonths} onNew={()=>setModal(blankPost(settings.year))} onNewForMonth={newForMonth} onEdit={openPost} onStatusChange={updateStatus} onExport={()=>exportCSV(filtered)}/>}
+        {view==="calendar"&&<CalView posts={yearPosts} calDate={calDate} setCalDate={setCalDate} onEdit={openPost} onDayClick={d=>setDayModal({date:d})}/>}
         {view==="publications"&&<PublicationsView pubs={pubs} onNew={()=>setPubModal(blankPub())} onEdit={setPubModal} onToggleDone={togglePubDone} collapsed={collapsedPubMonths} setCollapsed={setCollapsedPubMonths}/>}
         {view==="analytics"&&<Analytics posts={yearPosts}/>}
         {view==="activity"&&<ActivityView log={activityLog}/>}
@@ -1016,7 +1077,12 @@ function SettingsView({ settings, onSave, years, onSaveYears, currentYear, onSet
   const undoRemove=()=>{if(!lastRemoved)return;onSaveYears([...years,lastRemoved].sort());setLastRemoved(null);};
   const nextYr=()=>{const last=years[years.length-1];const[,e]=last.split("-");return`${e}-${parseInt(e)+1}`;};
   const bulkCandidates=allPosts.filter(p=>{if(bulkYear!=="All"&&p.academicYear!==bulkYear)return false;if(bulkStatus!=="All"&&p.status!==bulkStatus)return false;return true;});
-  const postsWithFiles=allPosts.map(p=>({...p,totalSize:(p.attachments||[]).reduce((s,a)=>s+(a.size||0),0),fileCount:(p.attachments||[]).length})).filter(p=>p.fileCount>0).sort((a,b)=>b.totalSize-a.totalSize);
+  const postsWithFiles=allPosts.map(p=>{
+    const loaded=Array.isArray(p.attachments)?p.attachments:null;
+    const fileCount=loaded?loaded.length:(p._attCount||0);
+    const totalSize=loaded?loaded.reduce((s,a)=>s+(a.size||0),0):(p._attSize||0);
+    return {...p,totalSize,fileCount};
+  }).filter(p=>p.fileCount>0).sort((a,b)=>b.totalSize-a.totalSize);
   const totalStorageBytes=postsWithFiles.reduce((s,p)=>s+p.totalSize,0);
   const SCard=({children})=><div style={{background:"white",borderRadius:"10px",padding:"24px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>{children}</div>;
   const STitle=({children})=><h3 style={{marginTop:0,marginBottom:"6px",fontSize:"15px",color:"#1e293b",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>{children}</h3>;

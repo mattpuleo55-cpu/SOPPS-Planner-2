@@ -15,6 +15,7 @@ const STATUSES = ["Planned","Scheduled","Posted"];
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const STATUS_CLR = { Planned:"#94a3b8", Scheduled:"#f59e0b", Posted:"#22c55e" };
+const EVENT_CLR = "#38bdf8";
 const TYPE_CLRS = ["#C8102E","#f59e0b","#10b981","#3b82f6","#ec4899","#8b5cf6","#14b8a6","#f97316","#06b6d4","#84cc16"];
 const DEFAULT_YEARS = ["2025-2026","2026-2027","2027-2028"];
 const DEFAULT_CAPTION_INSTRUCTIONS = `SOPPS Instagram Caption Style Guidelines
@@ -38,7 +39,8 @@ REQUIRED: Every caption must end with #nubouve.
 AVOID: Flat or overly neutral tone, excessive hype, slang or overly casual phrasing, overuse of emojis or punctuation.`;
 
 const uid = () => Math.random().toString(36).slice(2,10);
-const blankPost = yr => ({ id:uid(), title:"", date:"", dateType:"none", format:"Post", contentType:"Event Promo", creator:"", status:"Planned", eventInfo:"", contacts:"", notes:"", caption:"", academicYear:yr, priority:false, deadline:"", attachments:[], engagement:{likes:"",reach:"",comments:""} });
+const blankPost = yr => ({ id:uid(), kind:"post", title:"", date:"", dateType:"none", format:"Post", contentType:"Event Promo", creator:"", status:"Planned", eventInfo:"", contacts:"", notes:"", caption:"", academicYear:yr, priority:false, deadline:"", attachments:[], engagement:{likes:"",reach:"",comments:""} });
+const blankEvent = yr => ({ id:uid(), kind:"event", title:"", date:"", dateType:"exact", format:"Post", contentType:"Other", creator:"", status:"Planned", eventInfo:"", contacts:"", notes:"", caption:"", academicYear:yr, priority:false, deadline:"", attachments:[], engagement:{likes:"",reach:"",comments:""} });
 const blankPub = () => ({ id:uid(), faculty:"", faculty2:"", faculty3:"", journal:"", articleLink:"", publishedMonth:"", articleTitle:"", done:false, createdAt:Date.now() });
 const S = { border:"1px solid #e2e8f0", borderRadius:"6px", padding:"6px 10px", fontSize:"13px", width:"100%", boxSizing:"border-box", fontFamily:"inherit", outline:"none" };
 const fmtTime = ts => { const d=new Date(ts); return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" at "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}); };
@@ -304,6 +306,10 @@ export default function App() {
 
   const yearPosts = posts.filter(p=>p.academicYear===settings.year);
   const filtered = yearPosts.filter(p => {
+    if(p.kind==="event"){
+      if(filter.month!=="All"&&dateGroupKey(p.date)!==filter.month)return false;
+      return true;
+    }
     if(filter.status!=="All"&&p.status!==filter.status)return false;
     if(filter.format!=="All"&&p.format!==filter.format)return false;
     if(filter.month!=="All"&&dateGroupKey(p.date)!==filter.month)return false;
@@ -452,10 +458,10 @@ export default function App() {
 
       <div style={{padding:"24px",maxWidth:"1100px",margin:"0 auto"}}>
         {view==="dashboard"&&<Dashboard posts={yearPosts} onEdit={openPost} onNew={()=>setModal(blankPost(settings.year))} onNavigate={setView}/>}
-        {view==="list"&&<ListView posts={filtered} allYearPosts={yearPosts} filter={filter} setFilter={setFilter} collapsedMonths={collapsedMonths} setCollapsedMonths={setCollapsedMonths} onNew={()=>setModal(blankPost(settings.year))} onNewForMonth={newForMonth} onEdit={openPost} onStatusChange={updateStatus} onExport={()=>exportCSV(filtered)}/>}
+        {view==="list"&&<ListView posts={filtered} allYearPosts={yearPosts} filter={filter} setFilter={setFilter} collapsedMonths={collapsedMonths} setCollapsedMonths={setCollapsedMonths} onNew={()=>setModal(blankPost(settings.year))} onNewForMonth={newForMonth} onEdit={openPost} onStatusChange={updateStatus} onExport={()=>exportCSV(filtered.filter(p=>p.kind!=="event"))}/>}
         {view==="calendar"&&<CalView posts={yearPosts} calDate={calDate} setCalDate={setCalDate} onEdit={openPost} onDayClick={d=>setDayModal({date:d})}/>}
         {view==="publications"&&<PublicationsView pubs={pubs} onNew={()=>setPubModal(blankPub())} onEdit={setPubModal} onToggleDone={togglePubDone} collapsed={collapsedPubMonths} setCollapsed={setCollapsedPubMonths}/>}
-        {view==="analytics"&&<Analytics posts={yearPosts}/>}
+        {view==="analytics"&&<Analytics posts={yearPosts.filter(p=>p.kind!=="event")}/>}
         {view==="activity"&&<ActivityView log={activityLog}/>}
         {view==="help"&&<HelpView/>}
         {view==="settings"&&<SettingsView key={settings.instructions.slice(0,20)} settings={settings} onSave={saveSettings} years={years} onSaveYears={saveYears} currentYear={settings.year} onSetYear={yr=>saveSettings({...settings,year:yr})} orphanedPosts={orphanedPosts} onRescueOrphans={yr=>commitPosts(posts.map(p=>!years.includes(p.academicYear)?{...p,academicYear:yr}:p))} allPosts={posts} onBulkDelete={bulkDelete} onDeleteAttachments={deleteAttachments}/>}
@@ -463,7 +469,7 @@ export default function App() {
 
       {modal&&<PostModal post={modal} onChange={setModal} onSave={upsert} onDelete={deletePost} onDiscard={()=>setModal(null)} onGenCaption={genCaption} aiLoading={aiLoading} years={years}/>}
       {pubModal&&<PubModal pub={pubModal} onChange={setPubModal} onSave={upsertPub} onDelete={deletePub} onDiscard={()=>setPubModal(null)}/>}
-      {dayModal&&<DayPickerModal date={dayModal.date} posts={yearPosts} onAssign={p=>{upsert({...p,date:dayModal.date,dateType:"exact"});setDayModal(null);}} onNew={()=>{setModal({...blankPost(settings.year),date:dayModal.date,dateType:"exact"});setDayModal(null);}} onClose={()=>setDayModal(null)}/>}
+      {dayModal&&<DayPickerModal date={dayModal.date} posts={yearPosts} onAssign={p=>{upsert({...p,date:dayModal.date,dateType:"exact"});setDayModal(null);}} onNew={()=>{setModal({...blankPost(settings.year),date:dayModal.date,dateType:"exact"});setDayModal(null);}} onNewEvent={()=>{setModal({...blankEvent(settings.year),date:dayModal.date,dateType:"exact"});setDayModal(null);}} onClose={()=>setDayModal(null)}/>}
     </div>
   );
 }
@@ -487,17 +493,18 @@ function NameModal({ onSave }) {
 
 function Dashboard({ posts, onEdit, onNew, onNavigate }) {
   const today=new Date(); today.setHours(0,0,0,0);
+  const realPosts = posts.filter(p=>p.kind!=="event");
   const tStr=todayStr();
   const in7=new Date(today); in7.setDate(today.getDate()+7);
   const in7Str=`${in7.getFullYear()}-${String(in7.getMonth()+1).padStart(2,"0")}-${String(in7.getDate()).padStart(2,"0")}`;
-  const thisWeek=posts.filter(p=>isExact(p.date)&&p.date>=tStr&&p.date<=in7Str&&p.status!=="Posted").sort((a,b)=>a.date<b.date?-1:1);
-  const priorities=posts.filter(p=>p.priority&&p.status!=="Posted"&&p.deadline).sort((a,b)=>a.deadline<b.deadline?-1:1);
-  const overdue=posts.filter(p=>p.status==="Planned"&&isExact(p.date)&&p.date<tStr);
-  const recentlyPosted=posts.filter(p=>p.status==="Posted").sort((a,b)=>b.lastUpdatedAt-a.lastUpdatedAt).slice(0,3);
+  const thisWeek=realPosts.filter(p=>isExact(p.date)&&p.date>=tStr&&p.date<=in7Str&&p.status!=="Posted").sort((a,b)=>a.date<b.date?-1:1);
+  const priorities=realPosts.filter(p=>p.priority&&p.status!=="Posted"&&p.deadline).sort((a,b)=>a.deadline<b.deadline?-1:1);
+  const overdue=realPosts.filter(p=>p.status==="Planned"&&isExact(p.date)&&p.date<tStr);
+  const recentlyPosted=realPosts.filter(p=>p.status==="Posted").sort((a,b)=>b.lastUpdatedAt-a.lastUpdatedAt).slice(0,3);
   const days=Array.from({length:7},(_,i)=>{ const d=new Date(today); d.setDate(today.getDate()+i); return d; });
   const byDate={};
   posts.forEach(p=>{ if(isExact(p.date)){if(!byDate[p.date])byDate[p.date]=[];byDate[p.date].push(p);} });
-  const statCards=[{label:"Total Posts",val:posts.length,color:NU_RED},{label:"Posted",val:posts.filter(p=>p.status==="Posted").length,color:"#22c55e"},{label:"Scheduled",val:posts.filter(p=>p.status==="Scheduled").length,color:"#f59e0b"},{label:"Planned",val:posts.filter(p=>p.status==="Planned").length,color:"#94a3b8"},{label:"Priority",val:posts.filter(p=>p.priority&&p.status!=="Posted").length,color:"#ef4444"}];
+  const statCards=[{label:"Total Posts",val:realPosts.length,color:NU_RED},{label:"Posted",val:realPosts.filter(p=>p.status==="Posted").length,color:"#22c55e"},{label:"Scheduled",val:realPosts.filter(p=>p.status==="Scheduled").length,color:"#f59e0b"},{label:"Planned",val:realPosts.filter(p=>p.status==="Planned").length,color:"#94a3b8"},{label:"Priority",val:realPosts.filter(p=>p.priority&&p.status!=="Posted").length,color:"#ef4444"}];
   const dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const Card=({children,style={}})=><div style={{background:"white",borderRadius:"10px",padding:"16px 20px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9",...style}}>{children}</div>;
   const ST=({children})=><div style={{fontWeight:700,fontSize:"12px",color:"#1e293b",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:"12px"}}>{children}</div>;
@@ -520,7 +527,7 @@ function Dashboard({ posts, onEdit, onNew, onNavigate }) {
               <div key={ds} style={{background:isToday?"#fff5f5":"#fafafa",borderRadius:"8px",padding:"8px 6px",minHeight:"80px",border:isToday?`1px solid ${NU_RED}30`:"1px solid #f1f5f9",overflow:"hidden",minWidth:0}}>
                 <div style={{fontSize:"10px",color:"#94a3b8",fontWeight:600,textAlign:"center",textTransform:"uppercase"}}>{dayNames[d.getDay()]}</div>
                 <div style={{fontSize:"15px",fontWeight:700,color:isToday?NU_RED:"#475569",textAlign:"center",marginBottom:"4px"}}>{d.getDate()}</div>
-                {dp.map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{background:p.priority?"#ef4444":STATUS_CLR[p.status],color:"white",borderRadius:"3px",padding:"2px 4px",fontSize:"9px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}
+                {dp.map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{background:p.kind==="event"?EVENT_CLR:(p.priority?"#ef4444":STATUS_CLR[p.status]),color:"white",borderRadius:"3px",padding:"2px 4px",fontSize:"9px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}
               </div>
             );
           })}
@@ -572,7 +579,7 @@ function Dashboard({ posts, onEdit, onNew, onNavigate }) {
             <ST>Needs a Date</ST>
             <button onClick={()=>onNavigate("list")} style={{background:"none",border:"none",color:NU_RED,fontSize:"12px",cursor:"pointer",fontWeight:500}}>View All →</button>
           </div>
-          {(()=>{ const nd=posts.filter(p=>isMonthOnly(p.date)&&p.status!=="Posted"); if(nd.length===0)return <div style={{color:"#94a3b8",fontSize:"13px",padding:"10px 0"}}>All posts have exact dates.</div>; return nd.slice(0,5).map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px",borderRadius:"7px",cursor:"pointer",marginBottom:"4px"}} onMouseEnter={e=>e.currentTarget.style.background="#f8f8f8"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{flex:1,minWidth:0}}><div style={{fontSize:"13px",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.title}</div><div style={{fontSize:"11px",color:"#94a3b8"}}>Month only: {fmtDate(p.date)}</div></div><span style={{background:STATUS_CLR[p.status],color:"white",borderRadius:"20px",padding:"1px 7px",fontSize:"10px",flexShrink:0}}>{p.status}</span></div>); })()}
+          {(()=>{ const nd=realPosts.filter(p=>isMonthOnly(p.date)&&p.status!=="Posted"); if(nd.length===0)return <div style={{color:"#94a3b8",fontSize:"13px",padding:"10px 0"}}>All posts have exact dates.</div>; return nd.slice(0,5).map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px",borderRadius:"7px",cursor:"pointer",marginBottom:"4px"}} onMouseEnter={e=>e.currentTarget.style.background="#f8f8f8"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><div style={{flex:1,minWidth:0}}><div style={{fontSize:"13px",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.title}</div><div style={{fontSize:"11px",color:"#94a3b8"}}>Month only: {fmtDate(p.date)}</div></div><span style={{background:STATUS_CLR[p.status],color:"white",borderRadius:"20px",padding:"1px 7px",fontSize:"10px",flexShrink:0}}>{p.status}</span></div>); })()}
         </Card>
       </div>
     </div>
@@ -600,6 +607,39 @@ function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, 
     Promise.all(readers).then(nf=>f("attachments",[...(post.attachments||[]),...nf]));
     e.target.value="";
   };
+  const KindToggle=()=><Row label="Add as"><div style={{display:"flex",gap:"6px",paddingTop:"2px"}}>{[["post","Post"],["event","Event"]].map(([k,l])=><TB key={k} active={(post.kind||"post")===k} onClick={()=>f("kind",k)}>{l}</TB>)}</div></Row>;
+  if((post.kind||"post")==="event"){
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"20px"}}>
+        <div style={{background:"white",borderRadius:"12px",width:"100%",maxWidth:"520px",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+          <div style={{padding:"14px 18px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",justifyContent:"space-between",borderRadius:"12px 12px 0 0",background:"#fafafa",flexShrink:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:"8px",minWidth:0,flex:1,marginRight:"12px"}}>
+              <span style={{background:EVENT_CLR,color:"white",borderRadius:"6px",minWidth:"22px",height:"22px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",flexShrink:0}}>◆</span>
+              <span style={{fontWeight:700,fontSize:"15px",color:"#1e293b",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{post.title||"New Event"}</span>
+            </div>
+            <div style={{display:"flex",gap:"6px",flexShrink:0}}>
+              <button onClick={()=>onDelete(post.id)} style={{background:"#fee2e2",color:"#ef4444",border:"none",borderRadius:"7px",padding:"7px 13px",cursor:"pointer",fontSize:"13px",fontWeight:600}}>Delete</button>
+              <button onClick={onDiscard} style={{background:"#e2e8f0",color:"#475569",border:"none",borderRadius:"7px",padding:"7px 13px",cursor:"pointer",fontSize:"13px",fontWeight:600}}>Discard</button>
+              <button onClick={()=>onSave(post)} style={{background:NU_RED,color:"white",border:"none",borderRadius:"7px",padding:"7px 18px",cursor:"pointer",fontSize:"13px",fontWeight:700}}>Save</button>
+            </div>
+          </div>
+          <div style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:"13px",overflowY:"auto",flex:1}}>
+            <KindToggle/>
+            <Row label="Title"><input value={post.title} onChange={e=>f("title",e.target.value)} style={S} placeholder="Event name"/></Row>
+            <Row label="Date">
+              <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
+                <div style={{display:"flex",gap:"6px"}}>{[["none","No date"],["month","Month only"],["exact","Exact date"]].map(([t,l])=><TB key={t} active={post.dateType===t} onClick={()=>setDateType(t)}>{l}</TB>)}</div>
+                {post.dateType==="month"&&<div style={{display:"flex",gap:"8px"}}><select value={post.date?post.date.split("-")[1]||"01":"01"} onChange={e=>{const yr=post.date?post.date.split("-")[0]:new Date().getFullYear();f("date",`${yr}-${e.target.value}`);}} style={{...S,flex:1}}>{MONTHS_LONG.map((m,i)=><option key={i} value={String(i+1).padStart(2,"0")}>{m}</option>)}</select><select value={post.date?post.date.split("-")[0]:new Date().getFullYear()} onChange={e=>{const mo=post.date?post.date.split("-")[1]||"01":"01";f("date",`${e.target.value}-${mo}`);}} style={{...S,flex:1}}>{[2025,2026,2027,2028,2029,2030].map(y=><option key={y}>{y}</option>)}</select></div>}
+                {post.dateType==="exact"&&<input type="date" value={post.date} onChange={e=>f("date",e.target.value)} style={S}/>}
+              </div>
+            </Row>
+            <Row label="Academic Year"><select value={post.academicYear} onChange={e=>f("academicYear",e.target.value)} style={S}>{years.map((y:string)=><option key={y}>{y}</option>)}</select></Row>
+            <Row label="Details"><textarea value={post.eventInfo||""} onChange={e=>f("eventInfo",e.target.value)} rows={3} style={{...S,resize:"vertical"}} placeholder="Location, time, and any details about the event…"/></Row>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"20px"}}>
       <div style={{background:"white",borderRadius:"12px",width:"100%",maxWidth:"600px",maxHeight:"92vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
@@ -615,6 +655,7 @@ function PostModal({ post, onChange, onSave, onDelete, onDiscard, onGenCaption, 
           </div>
         </div>
         <div style={{padding:"18px 20px",display:"flex",flexDirection:"column",gap:"13px",overflowY:"auto",flex:1}}>
+          <KindToggle/>
           <Row label="Title"><input value={post.title} onChange={e=>f("title",e.target.value)} style={S} placeholder="Post title or topic"/></Row>
           <Row label="Date">
             <div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
@@ -880,6 +921,23 @@ function ListView({ posts, allYearPosts, filter, setFilter, collapsedMonths, set
             </div>
             {!collapsed&&<div style={{display:"flex",flexDirection:"column",gap:"6px"}}>
               {groups[gk].map(p=>{
+                if(p.kind==="event"){
+                  return (
+                    <div key={p.id} style={{background:"white",borderRadius:"10px",boxShadow:"0 1px 3px rgba(0,0,0,0.05)",padding:"12px 14px",display:"flex",alignItems:"center",gap:"12px",border:"1px solid #f1f5f9",borderLeft:`3px solid ${EVENT_CLR}`}}>
+                      <div style={{width:"20px",height:"20px",borderRadius:"5px",background:EVENT_CLR,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"white",fontSize:"12px"}}>◆</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap",marginBottom:"3px"}}>
+                          <span style={{fontWeight:600,fontSize:"14px",color:"#1e293b"}}>{p.title||"Untitled event"}</span>
+                          <span style={{background:"#e0f2fe",color:"#0369a1",borderRadius:"20px",padding:"1px 9px",fontSize:"10px",fontWeight:600}}>Event</span>
+                          {isMonthOnly(p.date)&&<span style={{background:"#f0f9ff",color:"#0369a1",borderRadius:"4px",padding:"1px 7px",fontSize:"10px"}}>Month only</span>}
+                        </div>
+                        <div style={{display:"flex",gap:"14px",flexWrap:"wrap",fontSize:"12px",color:"#64748b"}}><span>{fmtDate(p.date)}</span></div>
+                        {p.eventInfo&&<div style={{fontSize:"12px",color:"#475569",marginTop:"5px",background:"#f8f8f8",borderRadius:"5px",padding:"5px 8px",lineHeight:1.5}}>{p.eventInfo}</div>}
+                      </div>
+                      <button onClick={()=>onEdit(p)} style={{background:"#f8f8f8",border:"1px solid #e2e8f0",borderRadius:"6px",padding:"5px 10px",cursor:"pointer",fontSize:"12px",color:"#475569",flexShrink:0}}>Edit</button>
+                    </div>
+                  );
+                }
                 const ns=nextStatus(p.status);
                 const deadlineSoon=p.priority&&p.deadline&&((new Date(p.deadline)-new Date())/(1000*60*60*24))<7;
                 return (
@@ -938,8 +996,8 @@ function CalView({ posts, calDate, setCalDate, onEdit, onDayClick }) {
         <button onClick={()=>setCalDate(new Date())} style={{background:"#f1f5f9",border:"none",borderRadius:"6px",padding:"6px 14px",cursor:"pointer",fontSize:"12px",color:"#475569",marginLeft:"auto",fontWeight:500}}>Today</button>
       </div>
       {monthOnly.length>0&&<div style={{background:"#fff5f5",border:`1px solid ${NU_RED}30`,borderRadius:"8px",padding:"10px 14px",marginBottom:"10px"}}>
-        <div style={{fontSize:"11px",fontWeight:600,color:NU_RED,marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.04em"}}>Month-wide posts — no exact date assigned yet</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>{monthOnly.map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{background:STATUS_CLR[p.status],color:"white",borderRadius:"4px",padding:"2px 8px",fontSize:"11px",cursor:"pointer"}}>{p.title}</div>)}</div>
+        <div style={{fontSize:"11px",fontWeight:600,color:NU_RED,marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.04em"}}>Month-wide items — no exact date assigned yet</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>{monthOnly.map(p=><div key={p.id} onClick={()=>onEdit(p)} style={{background:p.kind==="event"?EVENT_CLR:STATUS_CLR[p.status],color:"white",borderRadius:"4px",padding:"2px 8px",fontSize:"11px",cursor:"pointer"}}>{p.title}</div>)}</div>
       </div>}
       <div style={{background:"white",borderRadius:"10px",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.06)",border:"1px solid #f1f5f9"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:"#fafafa",borderBottom:"1px solid #e2e8f0"}}>
@@ -953,7 +1011,7 @@ function CalView({ posts, calDate, setCalDate, onEdit, onDayClick }) {
             return (
               <div key={i} style={{minHeight:"80px",padding:"6px",borderRight:"1px solid #f8f8f8",borderBottom:"1px solid #f8f8f8",background:day?"white":"#fafafa",cursor:day?"pointer":"default",overflow:"hidden",minWidth:0}} onClick={()=>day&&onDayClick(ds)}>
                 {day&&<div style={{width:"26px",height:"26px",borderRadius:"50%",background:isToday?NU_RED:"transparent",color:isToday?"white":"#475569",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",fontWeight:isToday?700:400,marginBottom:"4px"}}>{day}</div>}
-                {dp.map(p=><div key={p.id} onClick={e=>{e.stopPropagation();onEdit(p);}} style={{background:p.priority?"#ef4444":STATUS_CLR[p.status],color:"white",borderRadius:"3px",padding:"1px 5px",fontSize:"10px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}
+                {dp.map(p=><div key={p.id} onClick={e=>{e.stopPropagation();onEdit(p);}} style={{background:p.kind==="event"?EVENT_CLR:(p.priority?"#ef4444":STATUS_CLR[p.status]),color:"white",borderRadius:"3px",padding:"1px 5px",fontSize:"10px",marginBottom:"2px",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={p.title}>{p.title}</div>)}
               </div>
             );
           })}
@@ -961,19 +1019,20 @@ function CalView({ posts, calDate, setCalDate, onEdit, onDayClick }) {
       </div>
       <div style={{display:"flex",gap:"12px",marginTop:"12px",flexWrap:"wrap",alignItems:"center"}}>
         {STATUSES.map(s=><div key={s} style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"12px",color:"#475569"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:STATUS_CLR[s]}}></div>{s}</div>)}
+        <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"12px",color:"#475569"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:EVENT_CLR}}></div>Event</div>
         <span style={{fontSize:"11px",color:"#94a3b8",marginLeft:"auto"}}>Click a day to assign or add a post</span>
       </div>
     </div>
   );
 }
 
-function DayPickerModal({ date, posts, onAssign, onNew, onClose }) {
+function DayPickerModal({ date, posts, onAssign, onNew, onNewEvent, onClose }) {
   const [search,setSearch]=useState("");
   const [statusFilter,setStatusFilter]=useState("All");
   const [typeFilter,setTypeFilter]=useState("All");
   const currentMonth=date.slice(0,7);
   const [collapsed,setCollapsed]=useState({});
-  const eligible=posts.filter(p=>p.status!=="Posted");
+  const eligible=posts.filter(p=>p.status!=="Posted"&&p.kind!=="event");
   const filtered=eligible.filter(p=>{
     if(statusFilter!=="All"&&p.status!==statusFilter)return false;
     if(typeFilter!=="All"&&p.contentType!==typeFilter)return false;
@@ -1028,8 +1087,9 @@ function DayPickerModal({ date, posts, onAssign, onNew, onClose }) {
             );
           })}
         </div>
-        <div style={{padding:"14px 24px",borderTop:"1px solid #f1f5f9"}}>
-          <button onClick={onNew} style={{width:"100%",background:NU_RED,color:"white",border:"none",borderRadius:"8px",padding:"11px",cursor:"pointer",fontSize:"13px",fontWeight:600}}>+ Create New Post for {fmt(date)}</button>
+        <div style={{padding:"14px 24px",borderTop:"1px solid #f1f5f9",display:"flex",gap:"8px"}}>
+          <button onClick={onNew} style={{flex:1,background:NU_RED,color:"white",border:"none",borderRadius:"8px",padding:"11px",cursor:"pointer",fontSize:"13px",fontWeight:600}}>+ New Post for {fmt(date)}</button>
+          <button onClick={onNewEvent} style={{flex:1,background:EVENT_CLR,color:"white",border:"none",borderRadius:"8px",padding:"11px",cursor:"pointer",fontSize:"13px",fontWeight:600}}>+ New Event for {fmt(date)}</button>
         </div>
       </div>
     </div>
@@ -1251,6 +1311,7 @@ function HelpView() {
         <Step n="3"><strong>Calendar</strong> — click any day to assign an existing post to that date, or create a new one.</Step>
         <div style={{fontWeight:600,fontSize:"13px",color:"#1e293b",margin:"14px 0 10px"}}>Key fields explained:</div>
         <div style={{fontSize:"13px",color:"#475569",lineHeight:1.8}}>
+          <div><strong>Add as</strong> — choose Post or Event. Events are simple date markers (shown in light blue) for things like the actual date of an event you're promoting.</div>
           <div><strong>Date</strong> — choose No Date, Month Only (when you know the month but not the exact day), or Exact Date.</div>
           <div><strong>Priority</strong> — flags a post as high priority with a red marker, and lets you set a "must post by" deadline.</div>
           <div><strong>Format</strong> — Post, Story, or Reel. Tracked in Analytics.</div>
@@ -1262,8 +1323,8 @@ function HelpView() {
 
       <Section id="calendar" title="Using the Calendar" icon="📅">
         <Step n="1">Navigate months with the ‹ › arrows. Today's date is highlighted in red.</Step>
-        <Step n="2">Posts with exact dates appear as colored chips on their day. Click a chip to edit the post.</Step>
-        <Step n="3">Click any empty day to open the assignment panel — search and filter your existing posts to assign one to that date, or create a new post directly.</Step>
+        <Step n="2">Posts with exact dates appear as colored chips on their day. Events appear in light blue. Click a chip to edit it.</Step>
+        <Step n="3">Click any empty day to open the assignment panel — search and filter your existing posts to assign one to that date, or create a new post or event directly.</Step>
         <Step n="4">Posts with only a month (no exact date) appear in the yellow banner above the calendar grid. Click them to open and assign a date.</Step>
         <Tip>The assignment panel groups posts by month and opens the current month by default, making it easy to find posts already planned for that period.</Tip>
       </Section>
